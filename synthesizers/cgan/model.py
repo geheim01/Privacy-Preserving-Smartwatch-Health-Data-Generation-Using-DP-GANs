@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+import wandb
+from metric.visualization import plot_signal_distributions, visualization
 from sklearn.neighbors import KNeighborsClassifier
 from synthesizers.utils.training import (
     buildDataCTST,
@@ -8,12 +10,7 @@ from synthesizers.utils.training import (
     make_subplots,
     synthetic_dataset,
 )
-from tensorflow_privacy.privacy.analysis import compute_dp_sgd_privacy_lib
-from tensorflow_privacy.privacy.optimizers.dp_optimizer import (
-    DPGradientDescentGaussianOptimizer,
-)
-
-GradientDescentOptimizer = tf.compat.v1.train.GradientDescentOptimizer
+from wandb.keras import WandbMetricsLogger, WandbModelCheckpoint
 
 
 class ConditionalGAN(tf.keras.Model):
@@ -140,7 +137,12 @@ class ConditionalGAN(tf.keras.Model):
     ## LSTM Generator
 
     def conditional_generator(
-        hidden_units, seq_length, latent_dim, num_features, classes=2
+        hidden_units,
+        seq_length,
+        latent_dim,
+        num_features,
+        activation_function,
+        classes=2,
     ):
         # connect latent_space with a neuronal Net
         in_label = tf.keras.layers.Input(shape=(1,))
@@ -152,7 +154,7 @@ class ConditionalGAN(tf.keras.Model):
         # reshape to additional channel
         layer = tf.keras.layers.Reshape((seq_length, 1))(layer)
 
-        # orginal sequenz input
+        # orginal sequence input
         in_seq = tf.keras.layers.Input(shape=(latent_dim,))
 
         # connect latent_space with a neuronal Net
@@ -172,8 +174,10 @@ class ConditionalGAN(tf.keras.Model):
 
         rnn = tf.keras.layers.LSTM(hidden_units, return_sequences=True)(rnn)
 
-        # output lineare activation layer
-        out_layer = tf.keras.layers.Dense(num_features, dtype="float64")(rnn)
+        # output linear activation layer || RELU Actiovation Function - wandb best c2st score
+        out_layer = tf.keras.layers.Dense(
+            num_features, dtype="float64", activation=activation_function
+        )(rnn)
 
         model = tf.keras.models.Model([in_seq, in_label], out_layer)
 
@@ -184,8 +188,9 @@ class ConditionalGAN(tf.keras.Model):
     def conditional_discriminator(
         seq_length,
         num_features,
+        filters,
+        kernel_sizes=None,
         classes=2,
-        opt=tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.5),
     ):
         # connect label input with a neuronal Net
         in_label = tf.keras.layers.Input(shape=(1,))
@@ -206,21 +211,36 @@ class ConditionalGAN(tf.keras.Model):
         # convolutional layer block
         # You can play here with different filters and kernel sizes
         conv1 = tf.keras.layers.Conv1D(
-            filters=32, kernel_size=8, strides=1, padding="same"
+            # filters=32, kernel_size=8, strides=1, padding="same"
+            filters=filters[0],
+            # kernel_size=kernel_sizes[0],
+            kernel_size=8,
+            strides=1,
+            padding="same",
         )(merge)
         conv1 = tf.keras.layers.BatchNormalization()(conv1)
         conv1 = tf.keras.layers.ReLU()(conv1)
 
         # convolutional layer block
         conv2 = tf.keras.layers.Conv1D(
-            filters=64, kernel_size=5, strides=1, padding="same"
+            # filters=64, kernel_size=5, strides=1, padding="same"
+            filters=filters[1],
+            # kernel_size=kernel_sizes[1],
+            kernel_size=5,
+            strides=1,
+            padding="same",
         )(conv1)
         conv2 = tf.keras.layers.BatchNormalization()(conv2)
         conv2 = tf.keras.layers.ReLU()(conv2)
 
         # convolutional layer block
         conv3 = tf.keras.layers.Conv1D(
-            filters=32, kernel_size=3, strides=1, padding="same"
+            # filters=32, kernel_size=3, strides=1, padding="same"
+            filters=filters[2],
+            # kernel_size=kernel_sizes[2],
+            kernel_size=3,
+            strides=1,
+            padding="same",
         )(conv2)
         conv3 = tf.keras.layers.BatchNormalization()(conv3)
         conv3 = tf.keras.layers.ReLU()(conv3)
@@ -280,42 +300,29 @@ class GANMonitor(tf.keras.callbacks.Callback):
         label_mos = tf.ones((self.randomTrainNoMos.shape[0], 1))
         label_nomos = tf.zeros((self.randomTrainNoMos.shape[0], 1))
 
-        synthTrainMos = self.model.generator(
+        syn_train_mos = self.model.generator(
             [self.randomTrainMos, label_mos[: self.randomTrainMos.shape[0]]]
         )
-        synthTrainNoMos = self.model.generator([self.randomTrainNoMos, label_nomos])
-        synthTestMos = self.model.generator(
+        syn_train_no_mos = self.model.generator([self.randomTrainNoMos, label_nomos])
+        syn_test_mos = self.model.generator(
             [self.randomTestMos, label_mos[: self.randomTestMos.shape[0]]]
         )
-        synthTestNoMos = self.model.generator(
+        syn_test_no_mos = self.model.generator(
             [self.randomTestNoMos, label_nomos[: self.randomTestNoMos.shape[0]]]
         )
 
         label_mos = tf.ones((self.randomTrainMos.shape[0], 1))
         label_nomos = tf.zeros((self.randomTrainMos.shape[0], 1))
-        stressData = self.model.generator([self.randomTrainMos, label_mos])
-        nostressData = self.model.generator([self.randomTrainMos, label_nomos])
+        syn_stress = self.model.generator([self.randomTrainMos, label_mos])
+        syn_no_stress = self.model.generator([self.randomTrainMos, label_nomos])
 
-        # # Compute the privacy budget expended.
-        # if self.dp:
-        #     if self.noise_multiplier > 0.0:
-        #         eps, _ = compute_dp_sgd_privacy_lib.compute_dp_sgd_privacy(
-        #             60000, self.batch_size, self.noise_multiplier, epoch, 1e-5
-        #         )
-        #         print("For delta=1e-5, the current epsilon is: %.2f" % eps)
-        #     else:
-        #         print("Trained with DP-SGD but with zero noise.")
-        # else:
-        #     print("Trained with vanilla non-private SGD optimizer")
-
-        # if you want to perform classifier two sample test as well
         nn_train, nn_label, nn_test, nn_label_test = buildDataCTST(
-            synthTrainMos,
-            synthTrainNoMos,
+            syn_train_mos,
+            syn_train_no_mos,
             self.trainmos,
             self.trainnomos,
-            synthTestMos,
-            synthTestNoMos,
+            syn_test_mos,
+            syn_test_no_mos,
             self.testmos,
             self.testnomos,
             seq_length=self.seq_length,
@@ -325,17 +332,41 @@ class GANMonitor(tf.keras.callbacks.Callback):
         # Perform Classifier two sample test
         neigh = KNeighborsClassifier(2)
         neigh.fit(nn_train, nn_label)
-        c2stScore = neigh.score(nn_test, nn_label_test)
-        self.scorelist.append(c2stScore)
+        c2st_score = neigh.score(nn_test, nn_label_test)
+        self.scorelist.append(c2st_score)
 
-        if c2stScore <= min(self.scorelist) and c2stScore < 0.8:
-            print(c2stScore)
-            self.model.generator.save(f"{self.save_path}generator_{epoch}_{c2stScore}")
+        wandb.log({"c2st_score": c2st_score})
 
-        if (epoch) % 250 == 0:
-            plt.plot(self.scorelist)
-            plt.show()
-            generate_and_plot_data(
-                stressData, nostressData, self.num_seq, self.seq_length
+        if c2st_score <= min(self.scorelist) and c2st_score < 0.85:
+            print(c2st_score)
+            self.model.generator.save(
+                f"{self.save_path}generator_{epoch}e_{c2st_score}c2st_"
             )
-            self.model.generator.save(f"{self.save_path}generator_{epoch}_{c2stScore}")
+
+        if (epoch) % 100 == 0:
+            plot_pca_stress = visualization(
+                self.trainmos[: len(syn_stress)], syn_stress, "pca"
+            )
+
+            plot_tsne_stress = visualization(
+                self.trainmos[: len(syn_stress)], syn_stress, "tsne"
+            )
+
+            fig = generate_and_plot_data(
+                syn_stress,
+                syn_no_stress,
+                self.trainmos,
+                self.trainnomos,
+                self.num_seq,
+                self.seq_length,
+            )
+            # plot_pca_no_stress = visualization(
+            #     self.trainnomos[: len(syn_no_stress)], syn_no_stress, "pca"
+            # )
+            # plot_tsne_no_stress = visualization(
+            #     self.trainnomos[: len(syn_no_stress)], syn_no_stress, "tsne"
+            # )
+
+            wandb.log({"pca_stress": wandb.Image(plot_pca_stress)})
+            wandb.log({"tsne_stress": wandb.Image(plot_tsne_stress)})
+            wandb.log({"signals": fig})

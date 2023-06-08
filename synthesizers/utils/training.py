@@ -23,34 +23,71 @@ def synthetic_dataset(stressdata, nostressdata):
 
 
 # Plot the generated data in a 2x2 grid subplot
-def generate_and_plot_data(predictions, predictions2, samples, seq_length):
+def generate_and_plot_data(
+    syn_stress, syn_no_stress, ori_stress, ori_no_stress, samples, seq_length
+):
     fig = make_subplots(
-        rows=3,
+        rows=6,
         cols=2,
         subplot_titles=(
-            "BVP_MOS",
-            "BVP_NoMOS",
-            "EDA_MOS",
-            "EDA_NoMOS",
-            "TEMP_MOS",
-            "TEMP_noMOS",
+            "BVP_SYN_MOS",
+            "BVP_REAL_MOS",
+            "BVP_SYN_No_MOS",
+            "BVP_REAL_No_MOS",
+            "EDA_SYN_MOS",
+            "EDA_REAL_MOS",
+            "EDA_SYN_No_MOS",
+            "EDA_REAL_No_MOS",
+            "TEMP_SYN_MOS",
+            "TEMP_REAL_MOS",
+            "TEMP_SYN_No_MOS",
+            "TEMP_REAL_No_MOS",
         ),
     )
 
     for i in range(samples):
-        fig.add_trace(go.Scatter(y=predictions[i, :, 0], mode="lines"), row=1, col=1)
+        # BVP
+        fig.add_trace(go.Scatter(y=syn_stress[i, :, 0], mode="lines"), row=1, col=1)
 
-        fig.add_trace(go.Scatter(y=predictions2[i, :, 0], mode="lines"), row=1, col=2)
+        fig.add_trace(go.Scatter(y=ori_stress[i, :, 0], mode="lines"), row=1, col=2)
 
-        fig.add_trace(go.Scatter(y=predictions[i, :, 1], mode="lines"), row=2, col=1)
+        fig.add_trace(go.Scatter(y=syn_no_stress[i, :, 0], mode="lines"), row=2, col=1)
 
-        fig.add_trace(go.Scatter(y=predictions2[i, :, 1], mode="lines"), row=2, col=2)
+        fig.add_trace(go.Scatter(y=ori_no_stress[i, :, 0], mode="lines"), row=2, col=2)
 
-        fig.add_trace(go.Scatter(y=predictions[i, :, 5], mode="lines"), row=3, col=1)
+        # EDA
+        fig.add_trace(go.Scatter(y=syn_stress[i, :, 1], mode="lines"), row=3, col=1)
 
-        fig.add_trace(go.Scatter(y=predictions2[i, :, 5], mode="lines"), row=3, col=2)
+        fig.add_trace(go.Scatter(y=ori_stress[i, :, 1], mode="lines"), row=3, col=2)
 
-    return fig.show()
+        fig.add_trace(go.Scatter(y=syn_no_stress[i, :, 1], mode="lines"), row=4, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_no_stress[i, :, 1], mode="lines"), row=4, col=2)
+
+        # TEMP
+        fig.add_trace(go.Scatter(y=syn_stress[i, :, 5], mode="lines"), row=5, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_stress[i, :, 5], mode="lines"), row=5, col=2)
+
+        fig.add_trace(go.Scatter(y=syn_no_stress[i, :, 5], mode="lines"), row=6, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_no_stress[i, :, 5], mode="lines"), row=6, col=2)
+
+    # fig.show()
+
+    return fig
+
+
+def get_optimizer(lr=1e-3, optimizer="adam"):
+    "Select optmizer between adam and sgd with momentum"
+    if optimizer.lower() == "adam":
+        return tf.keras.optimizers.legacy.Adam(
+            learning_rate=lr
+        )  #  tf.keras.optimizers.Adam(learning_rate=lr)
+    if optimizer.lower() == "adamw":
+        return tf.keras.optimizers.AdamW(learning_rate=lr)
+    if optimizer.lower() == "sgd":
+        return tf.keras.optimizers.legacy.SGD(learning_rate=lr, momentum=0.1)
 
 
 # Build a Data set for Classifier Two sample Test

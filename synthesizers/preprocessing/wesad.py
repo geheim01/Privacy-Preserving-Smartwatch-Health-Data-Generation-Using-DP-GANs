@@ -5,7 +5,6 @@ from typing import List, Tuple
 import numpy as np
 import pandas as pd
 import scipy
-
 from synthesizers.utils.preprocessing import get_max_value_from_list
 
 
@@ -29,7 +28,7 @@ class Subject:
         data = self.data["signal"]["wrist"]
         return data
 
-    def get_subject_dataframe(self, sampling_rate: int = 64):
+    def get_subject_dataframe(self, sampling_rate: int = 64, normalize: bool = True):
         """Returns a dataframe with the preprocessed data of the subject"""
         wrist_data = self.get_wrist_data()
         bvp_signal = wrist_data["BVP"][:, 0]
@@ -72,9 +71,11 @@ class Subject:
         df.drop(df[df["label"].isin([0.0, 4.0, 5.0, 6.0, 7.0])].index, inplace=True)
         df["label"] = df["label"].replace([1.0, 2.0, 3.0], [0, 1, 0])
         df.reset_index(drop=True, inplace=True)
-        df = (df - df.min()) / (
-            df.max() - df.min()
-        )  # Normalize data (no train test leakage since data frame per subject)
+
+        if normalize:
+            # Normalize data (no train test leakage since data frame per subject)
+            df = (df - df.min()) / (df.max() - df.min())
+
         return df
 
 
@@ -86,20 +87,25 @@ class WESADDataset:
         for num in subject_numbers:
             self.subjects[num] = Subject(main_path, num)
 
-    def get_subject_dataframes(self, sampling_rate: int = 64):
+    def get_subject_dataframes(self, sampling_rate: int = 64, normalize: bool = True):
         """Returns a dictionary of preprocessed dataframes for each subject."""
         dataframes = {}
         for num, subject in self.subjects.items():
-            dataframes[num] = subject.get_subject_dataframe(sampling_rate=sampling_rate)
+            dataframes[num] = subject.get_subject_dataframe(
+                sampling_rate=sampling_rate, normalize=normalize
+            )
         return dataframes
 
-    def get_all_data(self, sampling_rate: int = 64):
+    def get_all_data(self, sampling_rate: int = 64, normalize: bool = True):
         """Returns a concatenated dataframe of preprocessed data from all subjects."""
-        dfs = self.get_subject_dataframes(sampling_rate=sampling_rate)
+        dfs = self.get_subject_dataframes(
+            sampling_rate=sampling_rate, normalize=normalize
+        )
         df = pd.concat(dfs.values())
         df = df.reset_index(drop=True)
         return df
 
+    @staticmethod
     def create_windows(df: pd.DataFrame, fs: int) -> Tuple[np.ndarray, list]:
         """Creates windows from the dataframe and returns the windows and the labels.
         If the window is assigned to multiple labels, the most common label is chosen for that period.
