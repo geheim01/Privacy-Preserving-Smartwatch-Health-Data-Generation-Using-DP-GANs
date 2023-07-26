@@ -1,18 +1,28 @@
 import tensorflow as tf
 from sklearn.neighbors import KNeighborsClassifier
-from tensorflow.keras.layers import (
-    Dense,
-    Dropout,
-    LayerNormalization,
-    MultiHeadAttention,
-)
+from tensorflow.keras.layers import (Dense, Dropout, LayerNormalization,
+                                     MultiHeadAttention)
 
 import wandb
 from metric.visualization import plot_signal_distributions, visualization
-from synthesizers.utils.training import build_classifier_dataset, generate_and_plot_data
+from synthesizers.utils.training import (build_classifier_dataset,
+                                         generate_and_plot_data)
 
 
 class ConditionalGAN(tf.keras.Model):
+    """
+    Conditional Generative Adversarial Network (GAN) for generating synthetic sequences based on input labels.
+    
+    Attributes:
+        discriminator: The discriminator model.
+        generator: The generator model.
+        seq_length: The length of the sequences to be generated.
+        latent_dim: The dimensionality of the latent space.
+        num_features: The number of features in the input data.
+        gen_loss_tracker: Tracker for generator loss.
+        disc_loss_tracker: Tracker for discriminator loss.
+    """
+
     def __init__(self, discriminator, generator, seq_length, latent_dim, num_features):
         super(ConditionalGAN, self).__init__()
         self.discriminator = discriminator
@@ -25,6 +35,9 @@ class ConditionalGAN(tf.keras.Model):
 
     @property
     def metrics(self):
+        """
+        Property function to return the metrics for the GAN.
+        """
         return [self.gen_loss_tracker, self.disc_loss_tracker]
 
     def compile(self, d_optimizer, g_optimizer, loss_fn):
@@ -34,6 +47,16 @@ class ConditionalGAN(tf.keras.Model):
         self.loss_fn = loss_fn
 
     def train_step(self, data):
+        """
+        Function to perform a training step for the ConditionalGAN.
+        
+        Args:
+            data: The input data for the GAN, consisting of real sequences and one-hot encoded labels.
+        
+        Returns:
+            A dictionary containing the generator loss, discriminator loss, and diversity term.
+        """
+        
         # Unpack the data
         real_seq, one_hot_labels = data
 
@@ -133,7 +156,6 @@ class ConditionalGAN(tf.keras.Model):
             "div_term": L_z,
         }
 
-    ## LSTM Generator
 
     def conditional_generator(
         hidden_units,

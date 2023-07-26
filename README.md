@@ -94,6 +94,15 @@ streamlit run streamlit_app/About.py
 ```
 
 This will start the Streamlit server and open the app in your default web browser.
+
+## Deliverables
+
+The research artifacts resulting from this work are available in a condensed format in this repository.
+
+Some of the synthetic datasets, generated from the different GAN architecutres, are located in the [data/syn path](data/syn).
+
+The trained models can be found in the [model directory](models/). These can be used in the Generator frontend to generate new synthetic data.
+
 ## Acknowledgement
 
 I would like to extend my sincere thanks to Maximilian Ehrhart and Bernd Resch for sharing their code related to their paper titled ["A Conditional GAN for Generating Time Series Data for Stress Detection in Wearable Physiological Sensor Data"](https://www.mdpi.com/1424-8220/22/16/5969). Their work on implementing the cGAN architecture and their insights on training it have been important to the success of our project.
