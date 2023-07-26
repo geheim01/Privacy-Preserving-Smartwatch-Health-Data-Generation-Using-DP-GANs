@@ -56,7 +56,7 @@ The repository consists of multiple notebooks representing the workflow of this 
 
 The data is loaded from the original WESAD dataset preprocessed and saved within a new file under a new named file [wesad_preprocessed_1hz.csv](data/wesad/wesad_preprocessed_1hz.csv). You can skip downloading the 2,1GB WESAD dataset and preprocessing and work with the already preprocessed WESAD-
 
-**[02-Model](02-cGAN-Model.ipynb)**
+**[02-cGAN](02-cGAN-Model.ipynb)**
 
 This notebook focuses on training the cGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the cGAN model for training.
 
@@ -67,7 +67,7 @@ This notebook focuses on training the TimeGAN model. It loads the preprocessed d
 
 **[02-DGAN](02-DGAN-Model.ipynb)**
 
-This notebook focuses on training the TimeGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the TimeGAN model for training.
+This notebook focuses on training the DGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the DGAN model for training.
 
 
 **[03-Generator](03-Generator.ipynb)**
