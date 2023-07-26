@@ -81,9 +81,8 @@ def create_generation_section():
 
     st.markdown(
         "##### What you should ensure before generating synthetic samples:\n"
-        "- If no model file path is provided, the default location `.trained_synth.pkl` is assumed.\n"
-        "- Always choose the correct type of data, that corresponds to the trained model in order "
-        "to avoid loading errors."
+        "- The models are found in `/models/`.\n"
+        "- To add new models, extend the model_dict in `2_Generate_synthetic_data.py`"
     )
 
 
