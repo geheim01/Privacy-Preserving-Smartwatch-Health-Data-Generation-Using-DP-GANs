@@ -31,11 +31,12 @@ Smartwatch health data has become an increasingly popular source of information 
 
 Our approach uses a combination of differential privacy and generative adversarial networks (GANs).
 
-## Dataset
+## Requirements
 
 The following dataset is required to run the code in this repository:
 
 - [WESAD Dataset (2,1GB)](https://uni-siegen.sciebo.de/s/HGdUkoNlW1Ub0Gx/download)
+- Python 3.8
 
 
 Download the WESAD dataset [here](https://ubicomp.eti.uni-siegen.de/home/datasets/icmi18/) and save the WESAD directory inside the [`data directory`](data).

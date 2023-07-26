@@ -1,7 +1,6 @@
 
 data_thesis/
 models_thesis/
-*.npy
 
 # Git ignore Github default
 # Byte-compiled / optimized / DLL files
