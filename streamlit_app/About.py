@@ -13,9 +13,13 @@ def create_landing_page():
 
     with col2:
         st.title("Welcome to Smartwatch Synthy!")
-        st.text("Privacy Preserving Smartwatch Health Data Generation using DPGANs")
+        st.text(
+            "Privacy Preserving Smartwatch Health Data Generation for Stress Detection using GANs"
+        )
 
-    st.markdown("The following are the comprised results of my master thesis.")
+    st.markdown(
+        "The following is a prototypical implementation to make the trained models accessible for synthetic data generation."
+    )
     create_synthetic_data_section()
     st.markdown(
         "This *streamlit_app* application can generate synthetic data for the WESAD dataset. "
@@ -81,8 +85,12 @@ def create_generation_section():
 
     st.markdown(
         "##### What you should ensure before generating synthetic samples:\n"
-        "- The models are found in `/models/`.\n"
+        "- The models are located in `/models/`.\n"
         "- To add new models, extend the model_dict in `2_Generate_synthetic_data.py`"
+    )
+
+    st.warning(
+        "Currently only the size of 60 seconds for each window is supported", icon="⚠️"
     )
 
 
