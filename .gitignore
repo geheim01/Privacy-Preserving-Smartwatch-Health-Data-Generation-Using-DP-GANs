@@ -1,6 +1,6 @@
 
-data/
-models/
+data_thesis/
+models_thesis/
 *.npy
 
 # Git ignore Github default

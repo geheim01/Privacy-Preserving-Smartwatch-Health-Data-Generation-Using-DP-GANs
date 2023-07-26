@@ -50,24 +50,24 @@ pip install -r requirements.txt
 
 ## Usage
 
-The repository consists of multiple notebooks representing the workflow of this work. Every notebook is one step of this workflow starting with the data preprocessing going over to the model training, synthezsing of the new synthesized dataset, to evaluating it with a newly trained respective stress detection model.
+The repository consists of multiple notebooks representing the workflow of this work. Every notebook is one step of this workflow starting with the data preprocessing going over to the model training, synthesizing of the new generated dataset, to evaluating it with a newly trained respective stress detection model.
 
 **[01-Data](01-Data.ipynb)**
 
-The data is loaded from the original WESAD dataset preprocessed and saved within a new file under a new named file [wesad_preprocessed_1hz.csv](data/wesad/wesad_preprocessed_1hz.csv). You can skip downloading the 2,1GB WESAD dataset and preprocessing and work with the already preprocessed WESAD-
+The data is loaded from the original WESAD dataset preprocessed and saved within a new file under a new named file [wesad_preprocessed_1hz.csv](data/wesad/wesad_preprocessed_1hz.csv). You can skip downloading the 2,1GB WESAD dataset and preprocessing and work with the already preprocessed WESAD dataset. This consists of two numpy arrays [wesad_windows.npy](data/wesad/wesad_windows.npy) and [wesad_labels.npy](data/wesad/wesad_labels.npy).
 
 **[02-cGAN](02-cGAN-Model.ipynb)**
 
-This notebook focuses on training the cGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the cGAN model for training.
+This notebook focuses on training the cGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the cGAN model.
 
 **[02-TimeGAN](02-TimeGAN-Model.ipynb)**
 
-This notebook focuses on training the TimeGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the TimeGAN model for training.
+This notebook focuses on training the TimeGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the TimeGAN model.
 
 
 **[02-DGAN](02-DGAN-Model.ipynb)**
 
-This notebook focuses on training the DGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the DGAN model for training.
+This notebook focuses on training the DGAN model. It loads the preprocessed data from the previous 01-Data notebook and runs the training for the DGAN model.
 
 
 **[03-Generator](03-Generator.ipynb)**
