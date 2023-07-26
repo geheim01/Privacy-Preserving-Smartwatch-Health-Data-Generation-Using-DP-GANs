@@ -17,10 +17,10 @@ class StressType(Enum):
 
 
 MODEL_DICT = {
-    "cGAN": "cgan",
-    "DP-cGAN-e-0.1": "dp-cgan-e-0.1",
-    "DP-cGAN-e-1": "dp-cgan-e-1",
-    "DP-cGAN-e-10": "dp-cgan-e-10",
+    "cGAN": "cgan/resilient_sweep-1",
+    "DP-cGAN-e-0.1": "dp-cgan-e-0_1/light-sweep-1",
+    "DP-cGAN-e-1": "dp-cgan-e-1/revived-sweep-2",
+    "DP-cGAN-e-10": "dp-cgan-e-10/usual-sweep-3",
 }  # Update with your model names or paths
 
 ITOSIG = {
@@ -110,7 +110,7 @@ def convert_df(df: pd.DataFrame) -> bytes:
 
 
 def load_model(model_name: str) -> keras.models.Model:
-    return keras.models.load_model(f"models/streamlit/{model_name}/generator")
+    return keras.models.load_model(f"models/{model_name}/generator")
 
 
 def generate_synthetic_data(

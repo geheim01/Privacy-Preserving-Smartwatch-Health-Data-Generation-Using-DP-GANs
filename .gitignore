@@ -1,6 +1,9 @@
 
 data_thesis/
 models_thesis/
+evaluation/
+launch.json
+settings.json
 
 # Git ignore Github default
 # Byte-compiled / optimized / DLL files
