@@ -12,10 +12,6 @@ SMARTWATCH_OS = {
     "E4": ["ACC_x", "ACC_y", "ACC_z", "TEMP", "EDA", "BVP"],
     "E4_DGAN": ["ACC_x", "ACC_y", "ACC_z", "TEMP", "EDA", "BVP"],
     "E4_CGAN": ["ACC_x", "ACC_y", "ACC_z", "TEMP", "EDA", "BVP"],
-    #'Tizen': ['ACC_x', 'ACC_y', 'ACC_z', 'TEMP', 'BVP'],
-    #'WearOS_watchOS': ['ACC_x', 'ACC_y', 'ACC_z', 'TEMP'],
-    #'Fitbit': ['ACC_x', 'ACC_y', 'ACC_z', 'TEMP', 'EDA'],
-    #'PiaOS': ['TEMP', 'EDA', 'BVP']
 }
 
 SIGNALS = ["ACC_x", "ACC_y", "ACC_z", "TEMP", "EDA", "BVP"]

@@ -3,7 +3,9 @@ from random import shuffle
 
 import numpy as np
 import tensorflow as tf
+from sklearn.metrics import auc, confusion_matrix, roc_curve
 from sklearn.model_selection import train_test_split
+
 from stress_detector import constants
 from stress_detector.data.datatype import DataType
 
@@ -65,28 +67,37 @@ def build_model(
 
 
 def train(
-    smart_os,
     signals,
     all_subjects_X,
     all_subjects_y,
     data_type: DataType,
     num_epochs: int,
     with_loso: bool,
+    num_syn_samples: int = 1,
+    additional_name: str = None,
+    test_sub: int = None,
 ):
-    print(f"\n\n\nSmartwatchOS: {smart_os}")
     print(f"DataType: {data_type}")
-    print(f"DataType: {type(data_type)}")
     print(f'Signals: {" ".join(signals)}')
     print(f"Number of signals: {len(signals)}")
-    global y_train
+    # global y_train
 
+    model_path = ""
+    groups_set = []
     # changed - no filter for smartwatch
     # all_subjects_X_os = filter_for_smartwatch_os(os, all_subjects_X)
     all_subjects_X_os = all_subjects_X
-    if data_type in (DataType.DGAN, DataType.CGAN):
+    if data_type in (
+        DataType.DGAN,
+        DataType.CGAN_LSTM,
+        DataType.CGAN_FCN,
+        DataType.CGAN_TRANSFORMER,
+        DataType.TIMEGAN,
+        DataType.DPCGAN,
+    ):
         groups_set = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
         subject_ids = constants.SUBJECT_IDS + [
-            "SYN"
+            f"SYN_{num_syn_samples}"
         ]  # ids for subjects in WESAD dataset
     if data_type == DataType.REAL:
         groups_set = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
@@ -102,12 +113,19 @@ def train(
     else:
         base_path = "models/stress_detector/tstr"  # train syn test real
 
+    if test_sub is not None:
+        test_sub_index = constants.SUBJECT_IDS.index(test_sub)
     print(f"BASE PATH: {base_path}")
     if with_loso:
         for i in groups_set:
             test_index = groups_set[i]
             train_index = [x for x in groups_set if x != test_index]
 
+            print(test_index)
+            if test_sub is not None:
+                if test_sub_index != test_index:
+                    print("SKIP training for test_index", test_index)
+                    continue
             print(f"Train on: {train_index}")
             print(f"Test  on: {test_index}")
 
@@ -136,15 +154,25 @@ def train(
             model = build_model(num_signals, num_output_class)
 
             print(f"data_type == DataType.DGAN: {data_type == DataType.DGAN}")
-            print(f"data_type == DataType.CGAN: {data_type == DataType.CGAN}")
+            print(f"data_type == DataType.CGAN: {data_type == DataType.CGAN_LSTM}")
+            print(f"data_type == DataType.DPCGAN: {data_type == DataType.DPCGAN}")
+            print(f"data_type == DataType.TIMEGAN: {data_type == DataType.TIMEGAN}")
             print(f"data_type == DataType.REAL: {data_type == DataType.REAL}")
 
             if data_type == DataType.REAL:
-                model_path = f"{base_path}/real/{num_epochs}/wesad_s{subject_ids[test_index]}.h5"  # Path to save the model file
+                model_path = f"{base_path}/real/{num_epochs}_epochs/{num_syn_samples}_subjects/wesad_s{subject_ids[test_index]}.h5"  # Path to save the model file
             if data_type == DataType.DGAN:
-                model_path = f"{base_path}/syn/dgan_30000/{num_epochs}/wesad_s{subject_ids[test_index]}.h5"
-            if data_type == DataType.CGAN:
-                model_path = f"{base_path}/syn/cgan/{num_epochs}/wesad_s{subject_ids[test_index]}.h5"
+                model_path = f"{base_path}/syn/dgan_30000/{num_epochs}_epochs/{num_syn_samples}_subjects/wesad_s{subject_ids[test_index]}.h5"
+            if data_type == DataType.TIMEGAN:
+                model_path = f"{base_path}/syn/timegan/{num_epochs}_epochs/{num_syn_samples}_subjects/wesad_s{subject_ids[test_index]}.h5"
+            if data_type == DataType.CGAN_LSTM:
+                model_path = f"{base_path}/syn/cgan/no_dp/lstm/{num_epochs}_epochs/{num_syn_samples}_subjects/wesad_s{subject_ids[test_index]}.h5"
+            if data_type == DataType.CGAN_FCN:
+                model_path = f"{base_path}/syn/cgan/no_dp/fcn/{num_epochs}_epochs/{num_syn_samples}_subjects/wesad_s{subject_ids[test_index]}.h5"
+            if data_type == DataType.CGAN_TRANSFORMER:
+                model_path = f"{base_path}/syn/cgan/no_dp/transformer/{num_epochs}_epochs/{num_syn_samples}_subjects/wesad_s{subject_ids[test_index]}.h5"
+            if data_type == DataType.DPCGAN:
+                model_path = f"{base_path}/syn/cgan/dp/{num_epochs}_epochs/{num_syn_samples}_subjects/wesad_s{subject_ids[test_index]}.h5"
 
             print(f"MODEL PATH: {model_path}")
 
@@ -170,7 +198,6 @@ def train(
                     1: weight_balance,
                 },  # to address the imbalance of the class labels
                 callbacks=callbacks,
-                validation_data=(X_test, y_test),
             )
 
     else:
@@ -184,12 +211,17 @@ def train(
 
         # Split the data into train and test sets
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
+            X, y, test_size=0.2, random_state=1
         )
 
         print(y_train[:10])
 
-        weight_balance = y_train.tolist().count(0) / y_train.tolist().count(1)
+        # weight_balance = y_train.tolist().count(0) / y_train.tolist().count(1)
+
+        if y_train.tolist().count(1) != 0:
+            weight_balance = y_train.tolist().count(0) / y_train.tolist().count(1)
+        else:
+            weight_balance = None
 
         X_train = np.asarray(X_train)
         X_test = np.asarray(X_test)
@@ -204,21 +236,32 @@ def train(
         model = build_model(num_signals, num_output_class)
 
         print(f"data_type == DataType.DGAN: {data_type == DataType.DGAN}")
-        print(f"data_type == DataType.CGAN: {data_type == DataType.CGAN}")
+        print(f"data_type == DataType.CGAN_LSTM: {data_type == DataType.CGAN_LSTM}")
+        print(f"data_type == DataType.DPCGAN: {data_type == DataType.DPCGAN}")
+        print(f"data_type == DataType.TIMEGAN: {data_type == DataType.TIMEGAN}")
 
         if data_type == DataType.DGAN:
             model_path = f"{base_path}/syn/dgan_30000/{num_epochs}/wesad.h5"
-        if data_type == DataType.CGAN:
-            model_path = f"{base_path}/syn/cgan/{num_epochs}/wesad.h5"
+        if data_type == DataType.CGAN_LSTM:
+            model_path = f"{base_path}/syn/cgan/no_dp/lstm/{num_epochs}/wesad.h5"
+        if data_type == DataType.CGAN_FCN:
+            model_path = f"{base_path}/syn/cgan/no_dp/fcn/{num_epochs}/wesad.h5"
+        if data_type == DataType.CGAN_TRANSFORMER:
+            model_path = f"{base_path}/syn/cgan/no_dp/transformer/{num_epochs}/wesad.h5"
+        if data_type == DataType.DPCGAN:
+            model_path = (
+                f"{base_path}/syn/cgan/dp/{num_epochs}/{additional_name}_wesad.h5"
+            )
+        if data_type == DataType.TIMEGAN:
+            model_path = f"{base_path}/syn/timegan/{num_epochs}/wesad.h5"
 
-        print(f"MODEL PATH: {model_path}")
         callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
                 model_path,
-                monitor="val_accuracy",  # The metric name to monitor
+                monitor="val_loss",  # The metric name to monitor
                 save_best_only=True,  # If True, it only saves the "best" model according to the quantity monitored
             ),
-            tf.keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=10),
+            tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=10),
         ]
 
         history = model.fit(
@@ -229,26 +272,30 @@ def train(
             verbose=1,
             class_weight={
                 0: 1,
-                1: weight_balance,
+                1: 1,  # if weight_balance is None else weight_balance,
             },  # to address the imbalance of the class labels
             callbacks=callbacks,
             validation_data=(X_test, y_test),
         )
 
+        print(f"Save model to: {model_path}")
+
 
 def evaluate(
-    os_scores_acc,
-    os_scores_f1,
-    smart_os,
-    signals,
+    gan_scores_acc,
+    gan_scores_f1,
+    gan_scores_precision,
+    gan_scores_recall,
     all_subjects_X,
     all_subjects_y,
     data_type: DataType,
     num_epochs: int,
+    num_subjects: int = 1,
     with_loso: bool = True,
+    subject_ids=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17],
+    additional_name: str = None,
 ):
-    # all_subjects_X_os = filter_for_smartwatch_os(os, all_subjects_X)
-    subject_ids = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17]
+    model_path = ""
 
     all_subjects_X_os = all_subjects_X
     all_accuracies = []
@@ -259,58 +306,81 @@ def evaluate(
 
     if not with_loso:
         print("*** Train on Synth, test on Real ***")
+    else:
+        print("*** Evaluate using 'Leave One Subject Out'-Method ***")
+
+    if not with_loso:
         print(f"DATATYPE: {data_type}")
         if data_type == DataType.DGAN:
             model_path = (
                 f"models/stress_detector/tstr/syn/dgan_30000/{num_epochs}/wesad.h5"
             )
-        if data_type == DataType.CGAN:
-            model_path = f"models/stress_detector/tstr/syn/cgan/{num_epochs}/wesad.h5"
-
-        print(f"LOADED: {model_path}")
+        if data_type == DataType.CGAN_LSTM:
+            model_path = (
+                f"models/stress_detector/tstr/syn/cgan/no_dp/lstm/{num_epochs}/wesad.h5"
+            )
+        if data_type == DataType.CGAN_FCN:
+            model_path = (
+                f"models/stress_detector/tstr/syn/cgan/no_dp/fcn/{num_epochs}/wesad.h5"
+            )
+        if data_type == DataType.CGAN_TRANSFORMER:
+            model_path = f"models/stress_detector/tstr/syn/cgan/no_dp/transformer/{num_epochs}/wesad.h5"
+        if data_type == DataType.DPCGAN:
+            model_path = f"models/stress_detector/tstr/syn/cgan/dp/{num_epochs}/{additional_name}_wesad.h5"
+        if data_type == DataType.TIMEGAN:
+            model_path = (
+                f"models/stress_detector/tstr/syn/timegan/{num_epochs}/wesad.h5"
+            )
         model = tf.keras.models.load_model(model_path)
+        print(f"LOADED: {model_path}")
 
-    for i, subject_id in enumerate(constants.SUBJECT_IDS):
-        X_test = all_subjects_X_os[i]
-        y_test = all_subjects_y[i]
-        X_test = np.asarray(X_test)
-        y_test = np.asarray(y_test)
-
+    all_confusion_matrices = []
+    for i, subject_id in enumerate(subject_ids):
+        test_index = constants.SUBJECT_IDS.index(subject_id)
+        X_test = np.asarray(all_subjects_X_os[test_index])
+        y_test = np.asarray(all_subjects_y[test_index])
         y_test = tf.keras.utils.to_categorical(y_test, num_output_class)
 
         if with_loso:
-            print("*** Evaluate using 'Leave One Subject Out'-Method ***")
             if data_type == DataType.REAL:
                 model_path = f"models/stress_detector/real/{num_epochs}/wesad_s{subject_id}.h5"  # Path to save the model file
             if data_type == DataType.DGAN:
-                model_path = f"models/stress_detector/syn/dgan_30000/{num_epochs}/wesad_s{subject_id}.h5"
-            if data_type == DataType.CGAN:
-                model_path = f"models/stress_detector/loso/syn/cgan/{num_epochs}/wesad_s{subject_id}.h5"
+                model_path = f"models/stress_detector/loso/syn/dgan_30000/{num_epochs}_epochs/{num_subjects}_subjects/wesad_s{subject_id}.h5"
+            if data_type == DataType.CGAN_LSTM:
+                model_path = f"models/stress_detector/loso/syn/cgan/no_dp/lstm/{num_epochs}_epochs/{num_subjects}_subjects/wesad_s{subject_id}.h5"
+            if data_type == DataType.CGAN_FCN:
+                model_path = f"models/stress_detector/loso/syn/cgan/no_dp/fcn/{num_epochs}_epochs/{num_subjects}_subjects/wesad_s{subject_id}.h5"
+            if data_type == DataType.CGAN_TRANSFORMER:
+                model_path = f"models/stress_detector/loso/syn/cgan/no_dp/transformer/{num_epochs}_epochs/{num_subjects}_subjects/wesad_s{subject_id}.h5"
+            if data_type == DataType.DPCGAN:
+                model_path = f"models/stress_detector/loso/syn/cgan/dp/{num_epochs}_epochs/{num_subjects}_subjects/wesad_s{subject_id}.h5"
+            if data_type == DataType.TIMEGAN:
+                model_path = f"models/stress_detector/loso/syn/timegan/{num_epochs}_epochs/{num_subjects}_subjects/wesad_s{subject_id}.h5"
 
+            print("MODEL_PATH:", model_path)
             model = tf.keras.models.load_model(model_path)
 
-        accuracy = model.evaluate(
-            X_test,
-            y_test,
-            verbose=0,
-        )[1]
-        precision = model.evaluate(
-            X_test,
-            y_test,
-            verbose=0,
-        )[2]
-        recall = model.evaluate(
-            X_test,
-            y_test,
-            verbose=0,
-        )[3]
+        y_pred = model.predict(X_test)
+        y_pred = np.argmax(y_pred, axis=1)
+        y_true = np.argmax(y_test, axis=1)
+
+        ## Create and store confusion matrix
+        confusion = confusion_matrix(y_true, y_pred)
+        all_confusion_matrices.append(confusion)
+
+        evaluation_metrics = model.evaluate(X_test, y_test, verbose=0)
+
+        accuracy = evaluation_metrics[1]
+        precision = evaluation_metrics[2]
+        recall = evaluation_metrics[3]
+
         f1 = 2 * precision * recall / (precision + recall)
         all_accuracies.append(accuracy)
         all_precisions.append(precision)
         all_recalls.append(recall)
         all_f1s.append(f1)
 
-    print(f"Smartwatch OS: {smart_os}")
+    print(f"GAN: {data_type.name}")
     print(f"Evaluation of CNN model trained on {num_epochs} epochs\n")
     print(f"Subject\t\t Accuracy\tPrecision\tRecall\t\tF1-Score")
     print("************************************************************************")
@@ -324,7 +394,17 @@ def evaluate(
         f"Average\t\t {round(np.mean(all_accuracies), 5):.5f}\t{round(np.mean(all_precisions), 5):.5f}\t\t{round(np.mean(all_recalls), 5):.5f}\t\t{round(np.mean(all_f1s), 5):.5f}\n\n\n"
     )
 
-    os_scores_acc[smart_os] = all_accuracies
-    os_scores_f1[smart_os] = all_f1s
+    key_suffix = "_aug" if with_loso else "_tstr"
+    gan_scores_acc[f"{data_type.name}{key_suffix}{additional_name}"] = all_accuracies
+    gan_scores_f1[f"{data_type.name}{key_suffix}{additional_name}"] = all_f1s
+    gan_scores_precision[
+        f"{data_type.name}{key_suffix}{additional_name}"
+    ] = all_precisions
+    gan_scores_recall[f"{data_type.name}{key_suffix}{additional_name}"] = all_recalls
 
-    return os_scores_acc, os_scores_f1
+    return {
+        "acc": gan_scores_acc,
+        "f1": gan_scores_f1,
+        "precision": gan_scores_precision,
+        "recall": gan_scores_recall,
+    }

@@ -13,11 +13,13 @@ visualization_metrics.py
 Note: Use PCA or tSNE for generated and original data visualization
 """
 
+from typing import Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.decomposition import PCA
-
-# Necessary packages
 from sklearn.manifold import TSNE
 
 
@@ -136,7 +138,10 @@ def plot_signal_distributions(X, syn_data, SIGTOI, ITOSIG):
     # Compare distribution of T_out values
     for sig_num, ax in zip(range(len(SIGTOI)), axs.flatten()):
         ax.hist(
-            [X[:, :, sig_num].flatten(), syn_data[:, :, sig_num].flatten()],
+            [
+                np.array(X[:, :, sig_num]).flatten(),
+                np.array(syn_data[:, :, sig_num]).flatten(),
+            ],
             label=["Real", "Synthetic"],
             bins=25,
             density=True,
@@ -147,6 +152,121 @@ def plot_signal_distributions(X, syn_data, SIGTOI, ITOSIG):
         ax.set_title("Statistical Distribution - Real vs Synthetic Data")
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
     return plt
+
+
+def generate_and_plot_data(
+    syn_stress, syn_no_stress, ori_stress, ori_no_stress, samples, seq_length
+):
+    fig = make_subplots(
+        rows=6,
+        cols=2,
+        subplot_titles=(
+            "BVP_SYN_MOS",
+            "BVP_REAL_MOS",
+            "BVP_SYN_No_MOS",
+            "BVP_REAL_No_MOS",
+            "EDA_SYN_MOS",
+            "EDA_REAL_MOS",
+            "EDA_SYN_No_MOS",
+            "EDA_REAL_No_MOS",
+            "TEMP_SYN_MOS",
+            "TEMP_REAL_MOS",
+            "TEMP_SYN_No_MOS",
+            "TEMP_REAL_No_MOS",
+        ),
+    )
+
+    for i in range(samples):
+        # BVP
+        fig.add_trace(go.Scatter(y=syn_stress[i, :, 0], mode="lines"), row=1, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_stress[i, :, 0], mode="lines"), row=1, col=2)
+
+        fig.add_trace(go.Scatter(y=syn_no_stress[i, :, 0], mode="lines"), row=2, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_no_stress[i, :, 0], mode="lines"), row=2, col=2)
+
+        # EDA
+        fig.add_trace(go.Scatter(y=syn_stress[i, :, 1], mode="lines"), row=3, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_stress[i, :, 1], mode="lines"), row=3, col=2)
+
+        fig.add_trace(go.Scatter(y=syn_no_stress[i, :, 1], mode="lines"), row=4, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_no_stress[i, :, 1], mode="lines"), row=4, col=2)
+
+        # TEMP
+        fig.add_trace(go.Scatter(y=syn_stress[i, :, 5], mode="lines"), row=5, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_stress[i, :, 5], mode="lines"), row=5, col=2)
+
+        fig.add_trace(go.Scatter(y=syn_no_stress[i, :, 5], mode="lines"), row=6, col=1)
+
+        fig.add_trace(go.Scatter(y=ori_no_stress[i, :, 5], mode="lines"), row=6, col=2)
+
+    # fig.show()
+
+    return fig
+
+
+# def generate_and_plot_data(
+#     syn_stress: Optional[np.ndarray] = None,
+#     syn_no_stress: Optional[np.ndarray] = None,
+#     ori_stress: Optional[np.ndarray] = None,
+#     ori_no_stress: Optional[np.ndarray] = None,
+#     samples: int = 0,
+#     seq_length: int = 0,
+# ):
+#     """
+#     Generates and plots synthetic and original stress/no-stress data.
+
+#     Each parameter is expected to be a 3D numpy array with shape (samples, seq_length, features).
+
+#     Parameters:
+#     syn_stress: Synthetic stress data.
+#     syn_no_stress: Synthetic no-stress data.
+#     ori_stress: Original stress data.
+#     ori_no_stress: Original no-stress data.
+#     samples: The number of samples to plot.
+#     seq_length: The sequence length of the data.
+
+#     Returns:
+#     A plotly figure.
+#     """
+
+#     def add_trace(fig, data, row, col):
+#         if data is not None:
+#             fig.add_trace(
+#                 go.Scatter(y=data[i, :, feature], mode="lines"), row=row, col=col
+#             )
+
+#     fig = make_subplots(
+#         rows=6,
+#         cols=2,
+#         subplot_titles=(
+#             "BVP_SYN_MOS",
+#             "BVP_REAL_MOS",
+#             "BVP_SYN_No_MOS",
+#             "BVP_REAL_No_MOS",
+#             "EDA_SYN_MOS",
+#             "EDA_REAL_MOS",
+#             "EDA_SYN_No_MOS",
+#             "EDA_REAL_No_MOS",
+#             "TEMP_SYN_MOS",
+#             "TEMP_REAL_MOS",
+#             "TEMP_SYN_No_MOS",
+#             "TEMP_REAL_No_MOS",
+#         ),
+#     )
+
+#     for i in range(samples):
+#         for feature, start_row in zip([0, 1, 5], [1, 3, 5]):
+#             add_trace(fig, syn_stress, start_row, 1)
+#             add_trace(fig, ori_stress, start_row, 2)
+#             add_trace(fig, syn_no_stress, start_row + 1, 1)
+#             add_trace(fig, ori_no_stress, start_row + 1, 2)
+
+#     return fig

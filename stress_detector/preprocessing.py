@@ -1,11 +1,13 @@
 import pickle
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import scipy
+
 from stress_detector.data.datatype import DataType
 from synthesizers.preprocessing.wesad import WESADDataset
+from synthesizers.utils.preprocessing import get_max_value_from_list, most_common
 
 from . import constants
 
@@ -23,6 +25,40 @@ def most_common(lst):
 # if stress occurress in time interval return 1
 def check_for_stress(lst):
     return max(set(lst))
+
+
+def sliding_windows(data: pd.DataFrame) -> Tuple[np.array, np.array]:
+    """Create a sliding window from physiological measurement data.
+
+    Args:
+        data (pd.DataFrame): Pandas DataFrame object containing physiological measurements.
+        seq_length (int): The size of the window.
+
+    Returns:
+        tuple[np.array, np.array]: Windows with physiological measurements and corresponding labels.
+    """
+    # Exclude 'time_iso' column
+    container = data.loc[:, data.columns != "time_iso"]
+    containerArray = np.array(container)
+
+    window_size = 60  # Window size in seconds
+    overlap_size = 30  # Overlap size in seconds
+
+    # Calculate the number of data points per window and overlap
+    window_points = window_size * 1  # Since the capturing frequency is 1 Hz
+    overlap_points = overlap_size * 1
+
+    windows = []
+    labels = []
+
+    for i in range(0, containerArray.shape[0] - window_points + 1, overlap_points):
+        window = containerArray[i : i + window_points]
+        windows.append(window)
+
+        label = int(most_common(data["label"][i : i + window_points].to_list()))
+        labels.append(label)
+
+    return np.array(windows), np.array(labels)
 
 
 def create_windows(df: pd.DataFrame, fs: int) -> Tuple[np.ndarray, list]:
@@ -47,7 +83,7 @@ def create_windows(df: pd.DataFrame, fs: int) -> Tuple[np.ndarray, list]:
     for i in range(0, df.shape[0] - window_len, window_len):
         # Get the window data and label
         window = df[i : i + window_len]
-        label = int(check_for_stress(df["label"][i : i + window_len].to_list()))
+        label = int(most_common(df["label"][i : i + window_len].to_list()))
 
         # Convert the window data to a numpy array
         window = window.to_numpy()
@@ -143,40 +179,6 @@ def pad_along_axis(array: np.ndarray, target_length: int, axis: int = 0) -> np.n
     return np.pad(array, pad_width=npad, mode="constant", constant_values=0)
 
 
-def fft_subwindows(subwindows: list, duration: int, fs: int) -> list:
-    """Calculates the fft of the subwindows.
-
-    Args:
-        subwindows (list): C
-        duration (int): _description_
-        f_s (int): _description_
-
-    Returns:
-        list: Fft coefficients of the subwindows.
-    """
-    freqs = []
-    yfs = []
-    for subwindow in subwindows:
-        y = np.array(subwindow)
-        yf = scipy.fft.fft(y)
-        l = len(yf)
-        N = fs * duration
-        freq = scipy.fft.fftfreq(N, 1 / fs)
-
-        l //= 2
-        amps = np.abs(yf[0:l])
-        freq = np.abs(freq[0:l])
-
-        # Sort descending amp
-        p = amps.argsort()[::-1]
-        freq = freq[p]
-        amps = amps[p]
-
-        freqs.append(freq)
-        yfs.append(amps)
-    return np.asarray(freqs), np.asarray(yfs)
-
-
 def average_window(subwindows_fft: list) -> list:
     """Calculates the average of the fft coefficients of the subwindows.
 
@@ -199,7 +201,7 @@ def average_window(subwindows_fft: list) -> list:
     return avg_yfs
 
 
-def create_training_data_per_subject(fs, windows, yfs_per_min_for_signal):
+def create_training_data_per_subject(fs, windows):
     X = []
     for i in range(0, len(windows) - 1):
         yfs_averages = []
@@ -219,15 +221,20 @@ def create_training_data_per_subject(fs, windows, yfs_per_min_for_signal):
     return np.array(X)
 
 
-def create_preprocessed_subjects_data(subjects_data: dict, fs: int = 64) -> dict:
+def create_preprocessed_subjects_data(
+    subjects_data: dict, fs: int = 64, use_sliding_windows: bool = False
+) -> dict:
     # Creates averaged windows for all subjects from dataframes
 
     subjects_preprosessed_data = {}
     for subject_name, subject_df in subjects_data.items():
         subjects_preprosessed_data[subject_name] = {}
-        windows, labels = create_windows(subject_df, fs=fs)
-        yfs_per_min_for_signal = {}
-        X = create_training_data_per_subject(fs, windows, yfs_per_min_for_signal)
+        if use_sliding_windows:
+            windows, labels = sliding_windows(subject_df)
+        else:
+            windows, labels = create_windows(subject_df, fs=fs)
+
+        X = create_training_data_per_subject(fs, windows)
         y = np.array((labels[: len(windows) - 1]))
 
         subjects_preprosessed_data[subject_name]["X"] = X
@@ -248,28 +255,20 @@ def create_training_data_per_subject_gen(fs, windows):
                 signal_name=signal,
                 fs=fs,
             )
-            # print("Subwindow Shape: ", subwindows.shape)
             _, yfs = fft_subwindows(subwindows, duration_in_sec, fs=fs)
 
-            # print("fft_subwindows Shape: ", yfs.shape)
             padded_yfs = pad_along_axis(yfs, target_length=210, axis=1)
-            # orint("padded fft_subwindows Shape: ", padded_yfs.shape)
             yfs_averages.append(average_window(padded_yfs)[:210])
 
         X.append(yfs_averages)
     return np.array(X)
 
 
-def create_preprocessed_subjects_data_gen(windows: np.array, fs: int = 64) -> Tuple:
+def create_preprocessed_subjects_data_gen(windows: np.array, fs: int = 1) -> Tuple:
     # Creates averaged windows for all subjects from dataframes
     print("Windows Shape: ", windows.shape)
-    yfs_per_min_for_signal = {}
     X = create_training_data_per_subject_gen(fs, windows)
-
     y = np.array((windows[:, 0, 6][: len(X)]))
-    print(y)
-    print("X Shape:", X.shape)
-    print("y Shape:", y.shape)
 
     return X, y
 
@@ -293,7 +292,10 @@ def save_subject_data(subjects_data, save_path: str):
 
 
 def load_data(
-    data_type: DataType, sampling_rate: int, synthetic_data_path: str
+    data_type: DataType,
+    sampling_rate: int,
+    synthetic_data_path: Optional[str] = None,
+    use_sliding_windows: bool = False,
 ) -> Tuple[List, List]:
     """
     Load preprocessed data from disk or create it from scratch.
@@ -315,10 +317,10 @@ def load_data(
 
     try:
         # load dictionary from pickle file
-        print("*** Try to load data from disk ***\n")
+        print("*** Try to load original data from disk ***\n")
         with open(f"data/wesad/subject_data_{sampling_rate}hz.pickle", "rb") as f:
             subjects_data = pickle.load(f)
-
+            print("original data loaded")
     except FileNotFoundError:
         print("*** File not found ***")
         print("*** Preprocess data ***")
@@ -328,19 +330,19 @@ def load_data(
             subjects_data, f"data/wesad/subject_data_{sampling_rate}hz.pickle"
         )
 
-    if data_type == DataType.DGAN:
-        print("*** Add synthetic data to DGAN ***")
-        syn_df = pd.read_csv(synthetic_data_path, index_col=0)
-        subjects_data["SYN"] = syn_df
-        print(syn_df)
+    # if data_type == DataType.DGAN:
+    #     print("*** Add synthetic DGAN data ***")
+    #     syn_df = pd.read_csv(synthetic_data_path, index_col=0)
+    #     subjects_data["SYN"] = syn_df
+    #     print(syn_df)
 
     subjects_preprocessed_data = create_preprocessed_subjects_data(
-        subjects_data, fs=sampling_rate
+        subjects_data, fs=sampling_rate, use_sliding_windows=use_sliding_windows
     )
     all_subjects_X, all_subjects_y = get_subject_window_data(subjects_preprocessed_data)
 
     if data_type == DataType.CGAN:
-        print("*** Add synthetic data to CGAN ***")
+        print("*** Add synthetic cGAN data ***")
         with open(synthetic_data_path, "rb") as f:
             gen_data = np.load(f)
         X, y = create_preprocessed_subjects_data_gen(gen_data, fs=1)
@@ -348,34 +350,33 @@ def load_data(
         all_subjects_X.append(X)
         all_subjects_y.append(y)
 
+    if data_type == DataType.DPCGAN:
+        print("*** Add synthetic DP-cGAN data ***")
+        with open(synthetic_data_path, "rb") as f:
+            gen_data = np.load(f)
+        X, y = create_preprocessed_subjects_data_gen(gen_data, fs=1)
+
+        all_subjects_X.append(X)
+        all_subjects_y.append(y)
+
+    if data_type == DataType.DGAN:
+        print("*** Add synthetic DGAN data ***")
+        with open(synthetic_data_path, "rb") as f:
+            gen_data = np.load(f)
+        X, y = create_preprocessed_subjects_data_gen(gen_data, fs=1)
+
+        all_subjects_X.append(X)
+        all_subjects_y.append(y)
+
+    if data_type == DataType.TIMEGAN:
+        print("*** Add synthetic TIMEGAN data ***")
+        with open(synthetic_data_path, "rb") as f:
+            print(f"TimeGAN PATH: {synthetic_data_path}")
+            gen_data = np.load(f)
+
+        X, y = create_preprocessed_subjects_data_gen(gen_data, fs=1)
+
+        all_subjects_X.append(X)
+        all_subjects_y.append(y)
+
     return all_subjects_X, all_subjects_y
-
-
-def filter_for_smartwatch_os(smartwatch_os_name: str, all_subjects_X: list) -> list:
-    # Adjusts the data for the smartwatch os
-    all_subjects_X_adjusted_for_smartwatch_os = []
-    for subject_data in all_subjects_X:
-        subject_adjusted_for_smartwatch_os = []
-        for window in subject_data:
-            subject_adjusted_for_smartwatch_os.append(
-                window.loc[constants.SMARTWATCH_OS[smartwatch_os_name]]
-            )
-        all_subjects_X_adjusted_for_smartwatch_os.append(
-            subject_adjusted_for_smartwatch_os
-        )
-    return all_subjects_X_adjusted_for_smartwatch_os
-
-
-def filter_for_smartwatch_os_new(smartwatch_os_name: str, all_subjects_X: list) -> list:
-    # Adjusts the data for the smartwatch os
-    all_subjects_X_adjusted_for_smartwatch_os = []
-    for subject_data in all_subjects_X:
-        subject_adjusted_for_smartwatch_os = []
-        for window in subject_data:
-            subject_adjusted_for_smartwatch_os.append(
-                window.loc[constants.SMARTWATCH_OS[smartwatch_os_name]]
-            )
-        all_subjects_X_adjusted_for_smartwatch_os.append(
-            subject_adjusted_for_smartwatch_os
-        )
-    return all_subjects_X_adjusted_for_smartwatch_os
